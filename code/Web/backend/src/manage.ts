@@ -5,7 +5,9 @@ import { hashPassword, validEmail, validPassword } from "./security.js";
 try {
   if (process.argv[2] === "migrate") {
     await pool.query(await readFile("sql/001_auth.sql", "utf8"));
-    console.log("Authentication tables are ready.");
+    await pool.query(await readFile("sql/002_traffic.sql", "utf8"));
+    await pool.query(await readFile("sql/003_recovery_requests.sql", "utf8"));
+    console.log("Traffic control and authentication tables are ready.");
   } else if (process.argv[2] === "check") {
     const { SEED_EMAIL: email, SEED_PASSWORD: password } = process.env;
     if (!validEmail(email) || !password)
@@ -23,7 +25,7 @@ try {
         {
           accountExists: Boolean(user),
           seedNameConfigured: Boolean(process.env.SEED_NAME),
-          seedRoleValid: ["admin", "manager", "employee"].includes(
+          seedRoleValid: ["admin", "user"].includes(
             process.env.SEED_ROLE || "admin",
           ),
           seedPasswordMeetsPolicy: validPassword(password),
@@ -54,8 +56,8 @@ try {
       throw new Error(
         "Set SEED_NAME in backend/.env (the display name, not the login identifier).",
       );
-    if (!["admin", "manager", "employee"].includes(role))
-      throw new Error("SEED_ROLE must be admin, manager or employee.");
+    if (!["admin", "user"].includes(role))
+      throw new Error("SEED_ROLE must be admin or user.");
     const result = await pool.query(
       "INSERT INTO users(id,email,name,role,password_hash) VALUES($1,$2,$3,$4,$5) ON CONFLICT(email) DO NOTHING RETURNING id",
       [

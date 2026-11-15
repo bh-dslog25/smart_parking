@@ -9,7 +9,9 @@ import helmet from "helmet";
 import { rateLimit } from "express-rate-limit";
 import nodemailer from "nodemailer";
 import { pool } from "./db.js";
+import { trafficRouter } from "./traffic.js";
 import { allowedOrigins } from "./origins.js";
+import { recoveryRouter } from "./recovery.js";
 import {
   digest,
   hashPassword,
@@ -41,8 +43,8 @@ const mail = process.env.SMTP_HOST
         : {}),
     })
   : null;
-const otpCookieName = production ? "__Host-parking_otp" : "parking_otp";
-const cookieName = production ? "__Host-parking_session" : "parking_session";
+const otpCookieName = production ? "__Host-traffic_otp" : "traffic_otp";
+const cookieName = production ? "__Host-traffic_session" : "traffic_session";
 const cookieOptions = {
   httpOnly: true,
   secure: production,
@@ -194,7 +196,7 @@ app.post("/api/auth/users", limiter, async (req, res) => {
     return;
   }
   const { name, email, password, confirm, role } = req.body ?? {};
-  if (typeof name !== "string" || !name.trim() || name.length > 200 || !validEmail(email) || !validPassword(password) || password !== confirm || !["admin", "manager", "employee"].includes(role)) {
+  if (typeof name !== "string" || !name.trim() || name.length > 200 || !validEmail(email) || !validPassword(password) || password !== confirm || !["admin", "user"].includes(role)) {
     res.status(400).json({ message: "Vui lòng nhập họ tên, email, vai trò và mật khẩu hợp lệ (12–128 ký tự), xác nhận phải khớp." });
     return;
   }
@@ -210,7 +212,7 @@ app.post("/api/auth/users", limiter, async (req, res) => {
       res.status(401).json({ message: "Phiên đăng nhập đã hết hạn." });
       return;
     }
-    if (!(actor.role === "admin" || (actor.role === "manager" && role === "employee"))) {
+    if (actor.role !== "admin") {
       await client.query("ROLLBACK");
       res.status(403).json({ message: "Bạn không có quyền tạo tài khoản với vai trò này." });
       return;
@@ -282,7 +284,7 @@ app.post("/api/auth/forgot-password", limiter, async (req, res) => {
       try {
         if (mail) await mail.sendMail({
           from: process.env.SMTP_FROM, to: user.email,
-          subject: "Mã xác thực Smart Parking",
+          subject: "Mã xác thực Smart Traffic",
           text: `Mã OTP của bạn: ${code}. Mã hết hạn sau 5 phút. Nếu bạn không yêu cầu, hãy bỏ qua email này.`,
         });
         else console.log("Development email OTP:", code);
@@ -355,7 +357,7 @@ app.post("/api/auth/change-password", limiter, async (req, res) => {
     res.status(401).json({ message: "Vui lòng đăng nhập." });
     return;
   }
-  const { password, confirm } = req.body ?? {};
+  const { password, confirm, token: verificationToken } = req.body ?? {};
   if (!validPassword(password) || password !== confirm) {
     res.status(400).json({ message: "Mật khẩu phải có 12–128 ký tự và xác nhận phải khớp." });
     return;
@@ -379,7 +381,17 @@ app.post("/api/auth/change-password", limiter, async (req, res) => {
       res.clearCookie(cookieName, cookieOptions).status(401).json({ message: "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại." });
       return;
     }
+    if (typeof verificationToken !== 'string' || !/^[a-f0-9]{64}$/.test(verificationToken)) {
+      await client.query('ROLLBACK');
+      res.status(400).json({ message: 'Vui lòng xác thực email bằng mã OTP trước khi đổi mật khẩu.' }); return;
+    }
+    const verified = await client.query('DELETE FROM password_resets WHERE token_hash=$1 AND user_id=$2 AND expires_at>now() RETURNING user_id', [digest(verificationToken), rows[0].id]);
+    if (!verified.rows[0]) {
+      await client.query('ROLLBACK');
+      res.status(400).json({ message: 'Xác thực email đã hết hạn hoặc không thuộc tài khoản này.' }); return;
+    }
     await client.query("UPDATE users SET password_hash=$1 WHERE id=$2", [hash, rows[0].id]);
+    await client.query("UPDATE recovery_requests SET status='rejected',reviewed_at=now(),review_note='Người dùng đã tự đổi mật khẩu.' WHERE user_id=$1 AND status='pending'", [rows[0].id]);
     await client.query("DELETE FROM sessions WHERE user_id=$1", [rows[0].id]);
     await client.query("DELETE FROM email_otps WHERE user_id=$1", [rows[0].id]);
     await client.query("DELETE FROM password_resets WHERE user_id=$1", [rows[0].id]);
@@ -427,6 +439,7 @@ app.post("/api/auth/reset-password", limiter, async (req, res) => {
       hash,
       rows[0].id,
     ]);
+    await client.query("UPDATE recovery_requests SET status='rejected',reviewed_at=now(),review_note='Người dùng đã tự đặt lại mật khẩu.' WHERE user_id=$1 AND status='pending'", [rows[0].id]);
     await client.query("DELETE FROM sessions WHERE user_id=$1", [rows[0].id]);
     await client.query("DELETE FROM email_otps WHERE user_id=$1", [rows[0].id]);
     await client.query("DELETE FROM password_resets WHERE user_id=$1", [
@@ -443,6 +456,8 @@ app.post("/api/auth/reset-password", limiter, async (req, res) => {
     client.release();
   }
 });
+app.use('/api/auth', recoveryRouter(sessionToken));
+app.use("/api/traffic", trafficRouter(sessionToken));
 app.get("/api/health", async (_req, res) => {
   await pool.query("SELECT 1");
   res.json({ status: "ok" });

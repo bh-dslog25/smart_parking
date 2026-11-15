@@ -15,10 +15,10 @@ test("email OTP is browser-bound, limited, expiring and single-use", async () =>
     method: "POST", headers: { "Content-Type": "application/json", Cookie: cookie }, body: JSON.stringify(body),
   });
   const challenge = newToken(), challengeId = digest(challenge), code = "012345";
-  const cookie = `parking_otp=${challenge}`;
+  const cookie = `traffic_otp=${challenge}`;
   const verify = (value = code, browserCookie = cookie) => request("verify-otp", { challengeId, code: value }, browserCookie);
   try {
-    await pool.query("INSERT INTO users(id,email,name,role,password_hash) VALUES($1,$2,'OTP test','customer',$3)", [id, email, await hashPassword("Original password 2026!")]);
+    await pool.query("INSERT INTO users(id,email,name,role,password_hash) VALUES($1,$2,'OTP test','user',$3)", [id, email, await hashPassword("Original password 2026!")]);
     await pool.query("INSERT INTO email_otps(challenge_hash,user_id,code_hash,expires_at) VALUES($1,$2,$3,now()+interval '5 minutes')", [challengeId, id, digest(challenge + code)]);
     assert.equal((await verify(code, "")).status, 400);
     assert.equal((await verify("999999")).status, 400);

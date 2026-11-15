@@ -5,7 +5,7 @@ import { app } from "./app.js";
 import { pool } from "./db.js";
 import { digest, hashPassword, newToken } from "./security.js";
 
-test("account creation enforces admin, manager and employee hierarchy", async () => {
+test("account creation enforces admin and user permissions", async () => {
   const ids: string[] = [];
   const prefix = randomUUID();
   const password = "Hierarchy password 2026!";
@@ -21,28 +21,27 @@ test("account creation enforces admin, manager and employee hierarchy", async ()
   try {
     const hash = await hashPassword(password);
     const cookies: Record<string, string> = {};
-    for (const role of ["admin", "manager", "employee"]) {
+    for (const role of ["admin", "user"]) {
       const id = randomUUID(), token = newToken(); ids.push(id);
       await pool.query("INSERT INTO users(id,email,name,role,password_hash) VALUES($1,$2,'Role test',$3,$4)", [id, `${prefix}-${role}@example.com`, role, hash]);
       await pool.query("INSERT INTO sessions(token_hash,user_id,expires_at) VALUES($1,$2,now()+interval '1 hour')", [digest(token), id]);
-      cookies[role] = `parking_session=${token}`;
+      cookies[role] = `traffic_session=${token}`;
     }
-    assert.equal((await create("employee")).status, 401);
-    for (const role of ["admin", "manager", "employee"]) {
+    assert.equal((await create("user")).status, 401);
+    for (const role of ["admin", "user"]) {
       const response = await create(role, cookies.admin);
       assert.equal(response.status, 201);
       const body = await response.json();
       assert.equal(body.user.role, role);
       assert.equal(body.user.password_hash, undefined);
     }
-    assert.equal((await create("employee", cookies.manager)).status, 201);
-    assert.equal((await create("manager", cookies.manager)).status, 403);
-    assert.equal((await create("admin", cookies.manager)).status, 403);
-    assert.equal((await create("employee", cookies.employee)).status, 403);
+    assert.equal((await create("user", cookies.user)).status, 403);
+    assert.equal((await create("admin", cookies.user)).status, 403);
+    for (const role of ["manager", "employee", "staff", "customer"]) assert.equal((await create(role, cookies.admin)).status, 400);
     assert.equal((await create("owner", cookies.admin)).status, 400);
-    assert.equal((await create("employee", cookies.admin, `${prefix}-admin@example.com`)).status, 409);
+    assert.equal((await create("user", cookies.admin, `${prefix}-admin@example.com`)).status, 409);
     await pool.query("UPDATE sessions SET expires_at=now()-interval '1 second' WHERE user_id=$1", [ids[0]]);
-    assert.equal((await create("employee", cookies.admin)).status, 401);
+    assert.equal((await create("user", cookies.admin)).status, 401);
   } finally {
     try { await pool.query("DELETE FROM users WHERE id=ANY($1::uuid[]) OR email LIKE $2", [ids, `${prefix}-%`]); }
     finally {

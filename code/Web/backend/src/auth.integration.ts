@@ -34,7 +34,7 @@ test("PostgreSQL authentication lifecycle", async () => {
   try {
     await pool.query(
       "INSERT INTO users(id,email,name,role,password_hash) VALUES($1,$2,$3,$4,$5)",
-      [id, email, "Integration test", "employee", await hashPassword(password)],
+      [id, email, "Integration test", "user", await hashPassword(password)],
     );
     assert.equal((await request("me")).status, 401);
     const recovery = { email, name: "Integration test", phone: "0901234567", accountId: id };
@@ -50,7 +50,7 @@ test("PostgreSQL authentication lifecycle", async () => {
     assert.equal((await request("forgot-password", { email })).status, 200);
     assert.equal((await pool.query("SELECT request_phone FROM email_otps WHERE user_id=$1", [id])).rows[0].request_phone, null);
     await pool.query("DELETE FROM email_otps WHERE user_id=$1", [id]);
-    await pool.query("UPDATE users SET role='employee' WHERE id=$1", [id]);
+    await pool.query("UPDATE users SET role='user' WHERE id=$1", [id]);
     assert.equal((await login("wrong password")).status, 401);
     assert.equal(
       (await request("login", { email: "' OR 1=1 --", password })).status,
@@ -64,7 +64,7 @@ test("PostgreSQL authentication lifecycle", async () => {
     assert.doesNotMatch(setCookie, /Max-Age/i);
     const cookie = setCookie.split(";")[0]!;
     const publicData = await logged.json();
-    assert.equal(publicData.user.role, "employee");
+    assert.equal(publicData.user.role, "user");
     assert.equal(publicData.user.password_hash, undefined);
     assert.equal((await request("me", undefined, cookie)).status, 200);
     const remembered = await request(

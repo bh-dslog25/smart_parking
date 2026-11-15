@@ -7,6 +7,7 @@
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
+    "start:temporary-admin": "tsx src/server.ts --temporary-admin",
     "db:migrate": "tsx src/manage.ts migrate",
     "user:create": "tsx src/manage.ts user",
     "user:check": "tsx src/manage.ts check",

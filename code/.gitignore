@@ -1,0 +1,14 @@
+**/node_modules/
+**/dist/
+Desktop/release/
+Desktop/ui/
+.tools/
+.cache/
+Android/.gradle/
+Android/android/.gradle/
+Android/android/local.properties
+Android/android/**/build/
+Android/android/app/src/main/assets/public/
+Android/android/app/src/main/assets/capacitor.config.json
+Android/android/app/src/main/assets/capacitor.plugins.json
+*.log

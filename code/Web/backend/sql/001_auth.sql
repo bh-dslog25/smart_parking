@@ -1,7 +1,7 @@
 BEGIN;
 CREATE TABLE IF NOT EXISTS users (
  id UUID PRIMARY KEY, email TEXT NOT NULL UNIQUE CHECK(email=lower(email)),
- name TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'customer' CHECK(role IN ('admin','staff','customer')),
+ name TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'user' CHECK(role IN ('admin','user')),
  password_hash TEXT NOT NULL, active BOOLEAN NOT NULL DEFAULT TRUE, created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE TABLE IF NOT EXISTS sessions (
@@ -25,8 +25,9 @@ CREATE TABLE IF NOT EXISTS email_otps (
  request_name TEXT, request_phone TEXT, request_account_id TEXT
 );
 ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
-UPDATE users SET role='employee' WHERE role='staff';
-ALTER TABLE users ALTER COLUMN role SET DEFAULT 'employee';
-ALTER TABLE users ADD CONSTRAINT users_role_check CHECK(role IN ('admin','manager','employee','customer'));
+DELETE FROM sessions WHERE user_id IN (SELECT id FROM users WHERE role <> 'admin' AND role <> 'user');
+UPDATE users SET role='user' WHERE role IN ('staff','manager','employee','customer');
+ALTER TABLE users ALTER COLUMN role SET DEFAULT 'user';
+ALTER TABLE users ADD CONSTRAINT users_role_check CHECK(role IN ('admin','user'));
 
 COMMIT;
