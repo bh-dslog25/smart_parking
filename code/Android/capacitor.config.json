@@ -1,0 +1,9 @@
+{
+  "appId": "com.smarttraffic.android",
+  "appName": "Smart Traffic",
+  "loggingBehavior": "none",
+  "webDir": "../Web/frontend/dist",
+  "server": { "androidScheme": "https", "cleartext": true },
+  "android": { "backgroundColor": "#123d32" },
+  "plugins": { "CapacitorCookies": { "enabled": false } }
+}

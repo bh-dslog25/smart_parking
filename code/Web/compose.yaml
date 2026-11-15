@@ -1,3 +1,4 @@
+# Legacy database and volume names retain existing accounts during the Smart Traffic upgrade.
 services:
   postgres:
     image: postgres:17-alpine

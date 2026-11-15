@@ -1,0 +1,17 @@
+{
+  "name": "smart-traffic-android",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "sync": "node ../scripts/build-clients.mjs android",
+    "open": "cap open android",
+    "build": "npm run sync && node ../scripts/build-android.mjs",
+    "run": "npm run sync && cap run android",
+    "test:smoke": "node scripts/smoke.mjs"
+  },
+  "dependencies": {
+    "@capacitor/android": "8.6.2",
+    "@capacitor/core": "8.6.2"
+  },
+  "devDependencies": { "@capacitor/cli": "8.6.2" }
+}

@@ -1,8 +1,11 @@
 {
-  "name": "smart-parking-frontend",
+  "name": "smart-traffic-frontend",
   "version": "1.0.0",
   "private": true,
   "type": "module",
+  "dependencies": {
+    "@capacitor/core": "8.6.2"
+  },
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "tsc --noEmit && vite build",
