@@ -1,6 +1,7 @@
 import "./style.css";
 import { mountDashboard, stopDashboard } from "./traffic";
 import { request, mountConnection } from "./connection";
+import { mountRecovery } from './recovery';
 type User = {
   id: string;
   name: string;
@@ -11,6 +12,7 @@ type Mode = "login" | "forgot" | "otp" | "reset" | "change" | "create" | "accoun
 let mode: Mode = location.pathname === "/reset-password" ? "reset" : location.pathname === "/change-password" ? "change" : "login";
 let user: User | null = null;
 let challengeId = "";
+let changingAccount = false;
 let resetToken = new URLSearchParams(location.search).get("token") || "";
 // Keep the reset secret out of subsequent URLs and browser referrers.
 if (resetToken) history.replaceState(null, "", "/reset-password");
@@ -74,6 +76,10 @@ function render() {
     create: "Nhập thông tin đăng nhập và vai trò cho tài khoản mới.",
     account: "Giám sát và cấu hình tín hiệu tại các nút giao.",
   };
+  if (changingAccount && mode === 'forgot') {
+    titles.forgot = 'Xác thực trước khi đổi mật khẩu.';
+    subtitles.forgot = 'Xác thực bằng OTP gửi đến email của bạn trước khi nhập mật khẩu mới.';
+  }
   document.title = `${changing ? "Đổi mật khẩu" : mode === "account" ? "Tài khoản" : "Đăng nhập"} · Smart Traffic`;
   root.innerHTML = `<main class="layout"><aside class="story"><a class="brand" href="/">${icon}<span>smart<span class="brand-light">traffic</span><sup>®</sup></span></a><div class="story-body"><div class="eyebrow"><span></span> DI CHUYỂN THÔNG MINH HƠN</div><h1>Nhịp đèn thông minh.<br>Giao thông<br><em>thông suốt.</em></h1><p>Giám sát nút giao, điều phối tín hiệu.<br>Một hệ thống cho những hành trình an toàn.</p><div class="signal-art" aria-hidden="true"><i></i><i></i><i></i></div></div><div class="story-foot"><span>THÔNG MINH. AN TOÀN. TIỆN LỢI.</span><span>01 — 03</span></div></aside><section class="content"><div class="top-note">ĐIỀU KHIỂN ĐÈN GIAO THÔNG <span>●</span></div><div class="form-wrap"><div class="section-tag">${mode === "account" ? "KẾT NỐI THÀNH CÔNG" : "TÀI KHOẢN CỦA BẠN"}</div><h2>${titles[mode]}</h2><p class="subtitle">${subtitles[mode]}</p><div id="feedback" role="status" aria-live="polite" tabindex="-1" hidden></div>${mode === "account" ? `<div class="account"><div class="avatar">✓</div><h3 id="account-name"></h3><p id="account-email"></p><p id="account-id"></p><span class="role">${user ? roleNames[user.role] : ""}</span><p class="account-note">Bạn đã xác thực thành công vào hệ thống Smart Traffic.</p>${user && user.role === "admin" ? `<button class="primary" id="create-user">Tạo tài khoản ${arrow}</button>` : ""}<button class="primary" id="change-password">Đổi mật khẩu ${arrow}</button><button class="primary" id="logout">Đăng xuất ${arrow}</button></div>` : `<form id="auth-form">${mode === "create" ? creationFields() : ""}${!changing && mode !== "otp" ? '<label for="email">Địa chỉ email</label><input id="email" name="email" type="email" autocomplete="username" placeholder="ban@example.com" required maxlength="254">' : ""}${mode === "forgot" ? recoveryFields() : ""}${mode === "otp" ? '<label for="code">Mã OTP qua email</label><input id="code" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" minlength="6" maxlength="6" placeholder="Nhập 6 chữ số" required>' : ""}${mode !== "forgot" && mode !== "otp" ? passwordField(changing || mode === "create" ? "Mật khẩu mới" : "Mật khẩu", "password", changing || mode === "create" ? "new-password" : "current-password", changing || mode === "create" ? 12 : 1) : ""}${changing || mode === "create" ? passwordField("Xác nhận mật khẩu", "confirm", "new-password", 12) : ""}${mode === "login" ? '<div class="form-options"><label class="check"><input type="checkbox" name="remember"> Ghi nhớ đăng nhập</label><button type="button" class="text-button" id="forgot">Quên mật khẩu?</button></div>' : ""}<button class="primary" type="submit">${mode === "create" ? "Tạo tài khoản" : mode === "login" ? "Đăng nhập" : mode === "forgot" ? "Gửi mã OTP qua email" : mode === "otp" ? "Xác nhận mã OTP" : "Lưu mật khẩu mới"} ${arrow}</button>${mode !== "login" ? `<button type="button" class="back" id="back">${mode === "change" || mode === "create" ? "← Quay lại tài khoản" : "← Quay lại đăng nhập"}</button>` : ""}</form>${mode === "login" ? '<div class="help"><span class="help-icon">i</span><p>Chưa có tài khoản?<br><span>Liên hệ quản trị viên hệ thống để được cấp quyền truy cập.</span></p></div>' : ""}`}</div><footer><span>© ${new Date().getFullYear()} Smart Traffic</span><span class="secure"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 1 2 3v4c0 4 6 7 6 7s6-3 6-7V3L8 1Z" stroke="currentColor"/><path d="m5 7 2 2 4-4" stroke="currentColor"/></svg> Kết nối được bảo mật</span></footer></section></main>`;
   if (user && mode === "account") {
@@ -85,6 +91,7 @@ function render() {
     document.querySelector("#account-id")!.textContent = `Mã tài khoản: ${user.id}`;
   }
   document.querySelector("#forgot")?.addEventListener("click", () => {
+    changingAccount = false;
     mode = "forgot";
     render();
   });
@@ -93,12 +100,15 @@ function render() {
     render();
   });
   document.querySelector("#change-password")?.addEventListener("click", () => {
-    mode = "change";
+    changingAccount = true;
+    mode = "forgot";
     history.pushState(null, "", "/change-password");
     render();
   });
   document.querySelector("#back")?.addEventListener("click", () => {
-    mode = (mode === "change" || mode === "create") && user ? "account" : "login";
+    mode = (mode === "change" || mode === "create" || changingAccount) && user ? "account" : "login";
+    changingAccount = false;
+    challengeId = '';
     resetToken = "";
     history.replaceState(null, "", "/");
     render();
@@ -125,6 +135,17 @@ function render() {
     });
   });
   document.querySelector("#auth-form")?.addEventListener("submit", submit);
+  mountRecovery(root, mode === 'account' ? user?.role ?? null : null, api, mode === 'forgot' && !changingAccount);
+  if (changingAccount && mode === 'forgot' && user) {
+    document.querySelector('#back')!.textContent = '← Quay lại tài khoản';
+    for (const [key, value] of Object.entries({ email: user.email, name: user.name, accountId: user.id })) {
+      document.querySelector<HTMLInputElement>(`[name="${key}"]`)!.value = value;
+    }
+    if (user.role === 'admin') {
+      const checkbox = document.querySelector<HTMLInputElement>('#admin-recovery')!;
+      checkbox.checked = true; checkbox.dispatchEvent(new Event('change'));
+    }
+  }
   document
     .querySelector<HTMLButtonElement>("#logout")
     ?.addEventListener("click", async (event) => {
@@ -197,8 +218,8 @@ async function submit(event: Event) {
       const result = await api("verify-otp", { challengeId, code: String(data.get("code") || "") });
       resetToken = result.token;
       challengeId = "";
-      mode = "reset";
-      history.replaceState(null, "", "/reset-password");
+      mode = changingAccount ? 'change' : 'reset';
+      history.replaceState(null, "", changingAccount ? '/change-password' : '/reset-password');
       render();
     } else {
       const result = await api(mode === "change" ? "change-password" : "reset-password", {
@@ -207,6 +228,7 @@ async function submit(event: Event) {
         confirm: String(data.get("confirm") || ""),
       });
       resetToken = "";
+      changingAccount = false;
       user = null;
       mode = "login";
       history.replaceState(null, "", "/");
@@ -232,7 +254,8 @@ async function initialize() {
     } else {
       const result = await api("me");
       user = result.user;
-      mode = requested === "change" ? "change" : "account";
+      changingAccount = requested === 'change';
+      mode = requested === "change" ? "forgot" : "account";
     }
     render();
   } catch (error) {

@@ -509,6 +509,13 @@ summary { cursor: pointer; font-weight: 600; font-size: 12px; padding: 12px 0; }
 @media (max-width: 800px) { .intersection-list { grid-template-columns: 1fr; } .dashboard-layout .content { padding: 24px 18px; } }
 
 .connection-panel { padding: 10px 24px; background: #123d32; color: #eef5e7; border-bottom: 1px solid #537162; }
+.recovery-dialog { width: min(760px, calc(100% - 24px)); max-height: 90svh; overflow: auto; border: 1px solid #ced9cb; border-radius: 14px; padding: 24px; color: #203a33; background: #f9faf6; }
+.recovery-dialog::backdrop { background: #123d3288; }
+.recovery-dialog label { display: block; font-size: 12px; line-height: 1.8; margin: 14px 0; }
+.recovery-dialog p { font-size: 12px; line-height: 1.8; overflow-wrap: anywhere; }
+.recovery-dialog textarea { width: 100%; min-height: 80px; font: inherit; border: 1px solid #dce1d8; border-radius: 7px; padding: 10px; }
+.recovery-dialog .close-dialog { margin: 0 0 12px auto; min-height: 44px; }
+.recovery-card { background: white; border: 1px solid #dce4d8; border-radius: 10px; padding: 18px; margin-top: 18px; }
 .connection-panel summary { min-height: 36px; padding: 8px 0; font-size: 12px; }
 .connection-panel form { max-width: 760px; margin: auto; padding-bottom: 12px; }
 .connection-panel p { font-size: 12px; line-height: 1.7; }
