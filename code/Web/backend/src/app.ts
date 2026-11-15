@@ -211,32 +211,43 @@ app.post("/api/auth/users", limiter, async (req, res) => {
     });
     return;
   }
+
+  // Verify actor session and permissions before doing expensive scrypt hashing
+  const { rows: actorRows } = await pool.query(
+    "SELECT u.id,u.role FROM users u JOIN sessions s ON s.user_id=u.id WHERE s.token_hash=$1 AND s.expires_at>now() AND u.active=true",
+    [digest(token)],
+  );
+  const actor = actorRows[0];
+  if (!actor) {
+    res.clearCookie(cookieName, cookieOptions);
+    res.status(401).json({ message: "Phiên đăng nhập đã hết hạn." });
+    return;
+  }
+  if (!canCreateAccount(actor.role, role)) {
+    res.status(403).json({
+      message: "Bạn không có quyền tạo tài khoản với vai trò này.",
+    });
+    return;
+  }
+
   const hash = await hashPassword(password);
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    const { rows } = await client.query(
-      "SELECT u.id,u.role FROM users u JOIN sessions s ON s.user_id=u.id WHERE s.token_hash=$1 AND s.expires_at>now() AND u.active=true FOR UPDATE OF u",
-      [digest(token)],
-    );
     const session = await client.query(
       "SELECT user_id FROM sessions WHERE token_hash=$1 AND expires_at>now()",
       [digest(token)],
     );
-    const actor = rows[0];
-    if (!actor || session.rows[0]?.user_id !== actor.id) {
+    if (!session.rows[0] || session.rows[0].user_id !== actor.id) {
       await client.query("ROLLBACK");
+      res.clearCookie(cookieName, cookieOptions);
       res.status(401).json({ message: "Phiên đăng nhập đã hết hạn." });
       return;
     }
-    if (!canCreateAccount(actor.role, role)) {
-      await client.query("ROLLBACK");
-      res.status(403).json({
-        message: "Bạn không có quyền tạo tài khoản với vai trò này.",
-      });
-      return;
-    }
-    const created = await client.query("INSERT INTO users(id,email,name,role,password_hash) VALUES($1,$2,$3,$4,$5) ON CONFLICT(email) DO NOTHING RETURNING id,email,name,role", [randomUUID(), email.trim().toLowerCase(), name.trim(), role, hash]);
+    const created = await client.query(
+      "INSERT INTO users(id,email,name,role,password_hash) VALUES($1,$2,$3,$4,$5) ON CONFLICT(email) DO NOTHING RETURNING id,email,name,role",
+      [randomUUID(), email.trim().toLowerCase(), name.trim(), role, hash],
+    );
     await client.query("COMMIT");
     if (!created.rows[0]) {
       res.status(409).json({ message: "Email đã được sử dụng. Vui lòng chọn email khác." });
@@ -246,7 +257,9 @@ app.post("/api/auth/users", limiter, async (req, res) => {
   } catch (error) {
     await client.query("ROLLBACK");
     throw error;
-  } finally { client.release(); }
+  } finally {
+    client.release();
+  }
 });
 app.post("/api/auth/forgot-password", limiter, async (req, res) => {
   const { email, name, phone, accountId } = req.body ?? {};
