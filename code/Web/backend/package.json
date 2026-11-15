@@ -12,7 +12,9 @@
     "user:create": "tsx src/manage.ts user",
     "user:check": "tsx src/manage.ts check",
     "test": "tsx --test src/*.test.ts",
-    "test:integration": "tsx --test src/*.integration.ts"
+    "test:integration": "tsx --test src/*.integration.ts",
+    "test:use-cases": "tsx --test src/use-cases.integration.ts",
+    "test:all": "npm test && npm run test:integration"
   },
   "keywords": [],
   "author": "",
