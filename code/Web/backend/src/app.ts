@@ -11,9 +11,11 @@ import nodemailer from "nodemailer";
 import { pool } from "./db.js";
 import { allowedOrigins } from "./origins.js";
 import {
+  canCreateAccount,
   digest,
   hashPassword,
   newToken,
+  validAccountRole,
   validEmail,
   validPassword,
   verifyPassword,
@@ -194,25 +196,44 @@ app.post("/api/auth/users", limiter, async (req, res) => {
     return;
   }
   const { name, email, password, confirm, role } = req.body ?? {};
-  if (typeof name !== "string" || !name.trim() || name.length > 200 || !validEmail(email) || !validPassword(password) || password !== confirm || !["admin", "manager", "employee"].includes(role)) {
-    res.status(400).json({ message: "Vui lòng nhập họ tên, email, vai trò và mật khẩu hợp lệ (12–128 ký tự), xác nhận phải khớp." });
+  if (
+    typeof name !== "string" ||
+    !name.trim() ||
+    name.length > 200 ||
+    !validEmail(email) ||
+    !validPassword(password) ||
+    password !== confirm ||
+    !validAccountRole(role)
+  ) {
+    res.status(400).json({
+      message:
+        "Vui lòng nhập họ tên, email, vai trò và mật khẩu hợp lệ (12–128 ký tự), xác nhận phải khớp.",
+    });
     return;
   }
   const hash = await hashPassword(password);
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    const { rows } = await client.query("SELECT u.id,u.role FROM users u JOIN sessions s ON s.user_id=u.id WHERE s.token_hash=$1 AND s.expires_at>now() AND u.active=true FOR UPDATE OF u", [digest(token)]);
-    const session = await client.query("SELECT user_id FROM sessions WHERE token_hash=$1 AND expires_at>now()", [digest(token)]);
+    const { rows } = await client.query(
+      "SELECT u.id,u.role FROM users u JOIN sessions s ON s.user_id=u.id WHERE s.token_hash=$1 AND s.expires_at>now() AND u.active=true FOR UPDATE OF u",
+      [digest(token)],
+    );
+    const session = await client.query(
+      "SELECT user_id FROM sessions WHERE token_hash=$1 AND expires_at>now()",
+      [digest(token)],
+    );
     const actor = rows[0];
     if (!actor || session.rows[0]?.user_id !== actor.id) {
       await client.query("ROLLBACK");
       res.status(401).json({ message: "Phiên đăng nhập đã hết hạn." });
       return;
     }
-    if (!(actor.role === "admin" || (actor.role === "manager" && role === "employee"))) {
+    if (!canCreateAccount(actor.role, role)) {
       await client.query("ROLLBACK");
-      res.status(403).json({ message: "Bạn không có quyền tạo tài khoản với vai trò này." });
+      res.status(403).json({
+        message: "Bạn không có quyền tạo tài khoản với vai trò này.",
+      });
       return;
     }
     const created = await client.query("INSERT INTO users(id,email,name,role,password_hash) VALUES($1,$2,$3,$4,$5) ON CONFLICT(email) DO NOTHING RETURNING id,email,name,role", [randomUUID(), email.trim().toLowerCase(), name.trim(), role, hash]);

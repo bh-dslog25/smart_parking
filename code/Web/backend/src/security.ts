@@ -30,3 +30,19 @@ export const validEmail = (v: unknown): v is string =>
   /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 export const validPassword = (v: unknown): v is string =>
   typeof v === "string" && v.length >= 12 && v.length <= 128;
+export const validAccountRole = (
+  v: unknown,
+): v is "admin" | "manager" | "employee" =>
+  typeof v === "string" && ["admin", "manager", "employee"].includes(v);
+export function canCreateAccount(
+  actorRole: string,
+  targetRole: string,
+): boolean {
+  if (actorRole === "admin") {
+    return ["admin", "manager", "employee"].includes(targetRole);
+  }
+  if (actorRole === "manager") {
+    return targetRole === "employee";
+  }
+  return false;
+}
