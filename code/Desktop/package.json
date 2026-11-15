@@ -11,7 +11,8 @@
     "pack": "npm run build:ui && electron-builder --dir",
     "dist": "npm run build:ui && electron-builder --win nsis",
     "test": "node --test src/*.test.cjs",
-    "test:smoke": "npm run build:ui && electron scripts/smoke.cjs --smoke-test"
+    "test:smoke": "npm run build:ui && electron scripts/smoke.cjs --smoke-test",
+    "test:use-cases": "npm run test:smoke"
   },
   "devDependencies": {
     "electron": "45.3.2",

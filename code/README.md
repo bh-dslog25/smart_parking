@@ -6,6 +6,8 @@ Implemented features match the current backend: login/logout, remembered session
 
 Authentication now also includes personal-information recovery requests, admin approval/rejection and email verification before password changes. Server-local temporary admin provisioning and the audit against all supplied authentication diagrams are documented in [Web/USE_CASES.md](Web/USE_CASES.md).
 
+Every diagrammed authentication use case has a named backend scenario and shared UI coverage. See [Web/TESTING.md](Web/TESTING.md) for the coverage matrix, prerequisites and commands.
+
 ## Start the backend
 
 Follow [Web setup](Web/README.md) for PostgreSQL, `.env`, migrations and account provisioning. In `Web/backend`, run `npm install` then `npm run dev`. API port: **3000**. Both native clients connect directly to this API, using native HTTP and its existing cookie authentication. Browser CORS/origin protection remains unchanged. Never copy database credentials into a client.

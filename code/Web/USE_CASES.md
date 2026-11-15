@@ -29,3 +29,5 @@ The command refuses existing emails. Ctrl+C/SIGINT, SIGTERM, startup/listen fail
 Hard kills, power loss or an unavailable database cannot guarantee an immediate database DELETE. The next server startup removes orphaned temporary accounts before listening. PostgreSQL advisory locks prevent one running server from deleting another running server's temporary admin. `temporary-admin.integration.ts` verifies live ownership, collision refusal, idempotent cleanup, session deletion and orphan recovery. Shut down through Ctrl+C or SIGTERM when immediate cleanup is required. Existing `npm run user:create` is permanent provisioning and is intentionally separate.
 
 The migration `sql/003_recovery_requests.sql` is additive and repeatable; run migrations before deploying the updated server. Rebuild installed clients to include the new screens.
+
+See [the test coverage matrix and run commands](TESTING.md) for named UC01–UC08 backend scenarios, SMTP email verification, shared UI tests and the remaining platform-specific verification limits.
